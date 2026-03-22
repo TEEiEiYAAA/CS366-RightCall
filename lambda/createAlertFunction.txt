@@ -1,0 +1,49 @@
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
+const crypto = require("crypto"); // ใช้ crypto ของ Node.js แทนไลบรารี uuid
+
+// ตั้งค่าเชื่อมต่อ Database
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client);
+
+exports.handler = async (event) => {
+    try {
+        // 1. อ่านข้อมูลที่ส่งมาจากผู้ใช้
+        const body = JSON.parse(event.body);
+
+        // 2. จัดรูปแบบข้อมูลเตรียมบันทึก
+        const newAlert = {
+            incident_id: `INC-${crypto.randomUUID()}`, // สร้างรหัสอัตโนมัติ
+            incident_type: body.incident_type,
+            severity: body.severity,
+            location: body.location,
+            address_name: body.address_name,
+            status: "investigation",
+            incident_start: body.incident_start || new Date().toISOString(),
+            description: body.description,
+            created_at: new Date().toISOString()
+        };
+
+        // 3. คำสั่งบันทึกลง DynamoDB
+        const params = {
+            TableName: process.env.ALERT_TABLE,
+            Item: newAlert,
+        };
+        await docClient.send(new PutCommand(params));
+
+        // 4. ตอบกลับว่าสำเร็จ
+        return {
+            statusCode: 201,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: "Alert created successfully", data: newAlert })
+        };
+
+    } catch (error) {
+        console.error("Error:", error);
+        return {
+            statusCode: 500,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ error: "Could not create alert" })
+        };
+    }
+};

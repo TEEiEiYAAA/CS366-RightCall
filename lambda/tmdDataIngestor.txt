@@ -1,0 +1,50 @@
+exports.handler = async (event) => {
+    const url = "https://data.tmd.go.th/api/WeatherWarningNews/v1/?uid=demo&ukey=demokey&format=json";
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        console.log("📦 RAW:", JSON.stringify(data, null, 2));
+
+        const warning = data?.WarningNews;
+
+        if (!warning || Object.keys(warning).length === 0) {
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    message: "No warning data",
+                }),
+            };
+        }
+
+        const newAlert = {
+            incident_id: `TMD-${crypto.randomUUID()}`,
+            incident_type: "weather_warning",
+            severity: "high",
+            location: { type: "Polygon", coordinates: [] },
+            address_name: "Thailand",
+            status: "active",
+            description: warning.DescriptionThai?.substring(0, 500) || "",
+            issued_date: warning.AnnounceDateTime || "",
+            title: warning.TitleThai || "",
+            created_at: new Date().toISOString()
+        };
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(newAlert),
+        };
+
+    } catch (error) {
+        console.error("🔥 ERROR:", error);
+
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                message: "Failed to ingest data",
+                error: error.message,
+            }),
+        };
+    }
+};
